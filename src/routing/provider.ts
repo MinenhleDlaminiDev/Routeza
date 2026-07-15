@@ -1,0 +1,19 @@
+import type { LatLng, RouteResult, Stop } from '../types'
+
+export interface GeocodeResult {
+  id: string
+  lat: number
+  lng: number
+  failed?: boolean
+}
+
+export interface RoutingProvider {
+  /** Resolve each address to a coordinate. Order matches input; `failed` flags unresolved. */
+  geocode(stops: Stop[]): Promise<GeocodeResult[]>
+  /** Produce an optimized visiting order and legs starting from the depot. */
+  optimize(
+    depot: LatLng,
+    stops: Stop[],
+    opts: { roundTrip: boolean; avgSpeedMph: number },
+  ): Promise<RouteResult>
+}

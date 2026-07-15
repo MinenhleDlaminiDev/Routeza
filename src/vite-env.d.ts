@@ -1,0 +1,12 @@
+/// <reference types="vite/client" />
+
+interface ImportMetaEnv {
+  /** Routing backend: 'mock' (default) or 'free'. */
+  readonly VITE_ROUTING_PROVIDER?: 'mock' | 'free'
+  /** Optional MapTiler key for nicer map tiles. */
+  readonly VITE_MAPTILER_KEY?: string
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv
+}
