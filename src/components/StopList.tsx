@@ -11,6 +11,8 @@ interface StopListProps {
 // (e.g. @tanstack/react-virtual). A demo batch stays well under that, so we
 // render rows directly to keep the scroll container simple.
 export default function StopList({ derived, settings, onTap }: StopListProps) {
+  const routed = derived.filter((d) => d.located)
+  const unlocated = derived.filter((d) => !d.located)
   const allDone =
     derived.length > 0 &&
     derived.every((d) => d.stop.status !== 'pending')
@@ -27,11 +29,25 @@ export default function StopList({ derived, settings, onTap }: StopListProps) {
           </div>
         </div>
       )}
+
       <div className="mt-3">
-        {derived.map((d) => (
+        {routed.map((d) => (
           <StopRow key={d.stop.id} d={d} settings={settings} onTap={onTap} />
         ))}
       </div>
+
+      {unlocated.length > 0 && (
+        <>
+          <div className="px-4 pb-2 pt-5 font-mono text-[11px] font-600 uppercase tracking-[0.1em] text-muted">
+            Couldn't locate · {unlocated.length}
+          </div>
+          <div>
+            {unlocated.map((d) => (
+              <StopRow key={d.stop.id} d={d} settings={settings} onTap={onTap} />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

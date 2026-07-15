@@ -52,12 +52,28 @@ export function deriveStops(
     tMinutes += settings.serviceMinPerStop
     out.push({
       stop,
+      located: true,
       order: idx + 1,
       isCurrent: id === currentId,
       etaMinutes: arrival,
       legMiles,
     })
   })
+
+  // Append stops that couldn't be geocoded (not in the optimized route) so the
+  // driver can still see and work them. They carry no order/ETA/leg.
+  const orderedSet = new Set(route.orderedStopIds)
+  for (const stop of stops) {
+    if (orderedSet.has(stop.id)) continue
+    out.push({
+      stop,
+      located: false,
+      order: 0,
+      isCurrent: false,
+      etaMinutes: 0,
+      legMiles: 0,
+    })
+  }
   return out
 }
 

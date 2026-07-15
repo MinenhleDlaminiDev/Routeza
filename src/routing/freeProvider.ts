@@ -1,20 +1,14 @@
 import type { LatLng, RouteResult, Stop } from '../types'
 import type { GeocodeResult, RoutingProvider } from './provider'
 import { geocodeAddress } from './nominatim'
+import { osrmTrip } from './osrm'
+import { localOptimize } from '../lib/localOptimize'
 
 /**
  * Free / open-source routing backend.
  *
- *   geocode()  → Nominatim (OpenStreetMap)   — implemented in step 1b
- *   optimize() → OSRM `trip` service          — implemented in step 1c
- *
- * Both methods are placeholders for now. The app defaults to the mock provider
- * (see config.ts / index.ts), so selecting 'free' before 1b/1c are done will
- * surface these clear errors rather than failing silently.
- *
- * Notes for 1c:
- *  - OSRM `trip` returns an optimized visiting order plus real road geometry;
- *    use it for the route line instead of straight point-to-point segments.
+ *   geocode()  → Nominatim (OpenStreetMap)
+ *   optimize() → OSRM `trip` service, with a local nearest-neighbour fallback
  */
 export class FreeRoutingProvider implements RoutingProvider {
   /**
@@ -36,13 +30,28 @@ export class FreeRoutingProvider implements RoutingProvider {
     return results
   }
 
+  /**
+   * Optimize via OSRM (real road order + distances + geometry). Falls back to
+   * the local nearest-neighbour optimizer if OSRM is unreachable or errors, so
+   * a route is always produced.
+   */
   async optimize(
-    _depot: LatLng,
-    _stops: Stop[],
-    _opts: { roundTrip: boolean; avgSpeedMph: number },
+    depot: LatLng,
+    stops: Stop[],
+    opts: { roundTrip: boolean; avgSpeedMph: number },
   ): Promise<RouteResult> {
-    throw new Error(
-      'FreeRoutingProvider.optimize is not implemented yet (arrives in step 1c).',
+    const located = stops.filter(
+      (s) => s.lat != null && s.lng != null && !s.geocodeFailed,
     )
+    if (located.length === 0) {
+      return { orderedStopIds: [], legs: [], totalMiles: 0, totalDriveMin: 0 }
+    }
+    try {
+      return await osrmTrip(depot, located, { roundTrip: opts.roundTrip })
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[routing] OSRM unavailable, using local fallback:', err)
+      return localOptimize(depot, located, opts)
+    }
   }
 }

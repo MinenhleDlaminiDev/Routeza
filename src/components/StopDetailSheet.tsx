@@ -47,10 +47,13 @@ export default function StopDetailSheet({
           <div className="mb-4 flex items-start gap-3">
             <div
               className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-full border-2 border-white font-mono text-[14px] font-600 shadow-[0_1px_3px_rgba(0,0,0,.14)]"
-              style={{ background: st.pinColor, color: st.pinInk }}
+              style={{
+                background: d!.located ? st.pinColor : '#B8BAC0',
+                color: d!.located ? st.pinInk : '#FFFFFF',
+              }}
               aria-hidden
             >
-              {st.mark ?? d!.order}
+              {d!.located ? (st.mark ?? d!.order) : '!'}
             </div>
             <div className="min-w-0 flex-1">
               <h2
@@ -65,11 +68,17 @@ export default function StopDetailSheet({
                 </div>
               )}
               <div className="mt-1.5">
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-[11px] font-600 ${st.bgClass} ${st.textClass}`}
-                >
-                  {st.label} · {formatEta(settings.startHour, d!.etaMinutes)}
-                </span>
+                {d!.located ? (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-[11px] font-600 ${st.bgClass} ${st.textClass}`}
+                  >
+                    {st.label} · {formatEta(settings.startHour, d!.etaMinutes)}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-failed-bg px-2.5 py-0.5 font-mono text-[11px] font-600 text-failed-text">
+                    Couldn't locate — navigate by address
+                  </span>
+                )}
               </div>
             </div>
           </div>

@@ -27,6 +27,10 @@ export interface RouteResult {
   legs: RouteLeg[]
   totalMiles: number
   totalDriveMin: number // excludes service time
+  // Road-following route geometry (depot → stops → [depot]), when the provider
+  // supplies it (OSRM). Absent for straight-line providers. Consumed by the
+  // real map in step 1d.
+  geometry?: LatLng[]
 }
 
 export interface Settings {
@@ -42,7 +46,8 @@ export type ViewState = 'add' | 'route'
 /** A stop enriched with derived values for rendering. */
 export interface DerivedStop {
   stop: Stop
-  order: number // 1-based index in the optimized list
+  located: boolean // false = couldn't geocode; not in the optimized route
+  order: number // 1-based index in the optimized list (0 when unlocated)
   isCurrent: boolean // first pending stop
   etaMinutes: number // minutes from shift start until arrival
   legMiles: number // miles from previous stop (or depot) to this stop

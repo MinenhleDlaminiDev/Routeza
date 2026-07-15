@@ -10,7 +10,12 @@ interface StopRowProps {
 
 export default function StopRow({ d, settings, onTap }: StopRowProps) {
   const st = statusStyle(d.stop.status, d.isCurrent)
-  const failed = d.stop.geocodeFailed
+  const located = d.located
+
+  // Unlocated stops get a neutral grey "!" circle so they don't read as routed.
+  const circleBg = located ? st.pinColor : '#B8BAC0'
+  const circleInk = located ? st.pinInk : '#FFFFFF'
+  const circleContent = located ? (st.mark ?? d.order) : '!'
 
   return (
     <button
@@ -21,10 +26,10 @@ export default function StopRow({ d, settings, onTap }: StopRowProps) {
       {/* Status circle */}
       <div
         className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-full border-2 border-white font-mono text-[13px] font-600 shadow-[0_1px_3px_rgba(0,0,0,.14)]"
-        style={{ background: st.pinColor, color: st.pinInk }}
+        style={{ background: circleBg, color: circleInk }}
         aria-hidden
       >
-        {st.mark ?? d.order}
+        {circleContent}
       </div>
 
       {/* Name / address / pill */}
@@ -33,15 +38,17 @@ export default function StopRow({ d, settings, onTap }: StopRowProps) {
           {d.stop.name || d.stop.address}
         </div>
         <div className="ellipsis text-[13px] text-muted">
-          {d.stop.name ? d.stop.address : ' '}
+          {d.stop.name ? d.stop.address : ' '}
         </div>
         <div className="mt-1.5 flex items-center gap-1.5">
-          <span
-            className={`inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[11px] font-600 ${st.bgClass} ${st.textClass}`}
-          >
-            {st.label}
-          </span>
-          {failed && (
+          {(located || d.stop.status !== 'pending') && (
+            <span
+              className={`inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[11px] font-600 ${st.bgClass} ${st.textClass}`}
+            >
+              {st.label}
+            </span>
+          )}
+          {!located && (
             <span className="inline-flex items-center rounded-full bg-failed-bg px-2 py-0.5 font-mono text-[11px] font-600 text-failed-text">
               Couldn't locate
             </span>
@@ -49,14 +56,20 @@ export default function StopRow({ d, settings, onTap }: StopRowProps) {
         </div>
       </div>
 
-      {/* ETA + leg distance */}
+      {/* ETA + leg distance (routed stops only) */}
       <div className="flex flex-none flex-col items-end">
-        <span className="font-mono text-[13px] font-600 text-ink">
-          {formatEta(settings.startHour, d.etaMinutes)}
-        </span>
-        <span className="mt-0.5 font-mono text-[12px] text-muted">
-          {formatMiles(d.legMiles)}
-        </span>
+        {located ? (
+          <>
+            <span className="font-mono text-[13px] font-600 text-ink">
+              {formatEta(settings.startHour, d.etaMinutes)}
+            </span>
+            <span className="mt-0.5 font-mono text-[12px] text-muted">
+              {formatMiles(d.legMiles)}
+            </span>
+          </>
+        ) : (
+          <span className="font-mono text-[13px] text-muted">—</span>
+        )}
       </div>
     </button>
   )
