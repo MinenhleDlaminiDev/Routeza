@@ -129,7 +129,12 @@ export const useStore = create<RouteStore>()(
       partialize: (s) => ({
         stops: s.stops,
         settings: s.settings,
-        routeResult: s.routeResult,
+        // Drop the road geometry before persisting — it can be thousands of
+        // points. The line falls back to straight segments on reload until the
+        // next optimize refetches it.
+        routeResult: s.routeResult
+          ? { ...s.routeResult, geometry: undefined }
+          : null,
         view: s.view,
       }),
     },
