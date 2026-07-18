@@ -83,6 +83,9 @@ async function fetchNominatim(address: string): Promise<LatLng | null> {
     format: 'json',
     limit: '1',
     addressdetails: '0',
+    // Bias results to South Africa — drivers operate locally, and this
+    // improves matching for SA street addresses.
+    countrycodes: 'za',
   })
   try {
     const res = await fetch(`${NOMINATIM_URL}?${params.toString()}`, {

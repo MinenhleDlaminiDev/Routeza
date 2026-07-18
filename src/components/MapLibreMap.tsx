@@ -98,6 +98,11 @@ export default function MapLibreMap({
     })
     map.scrollZoom.disable() // don't hijack page scroll on the strip
     map.touchZoomRotate.disableRotation()
+    // Zoom +/- buttons so the strip can be zoomed back out (scroll-zoom is off).
+    map.addControl(
+      new maplibregl.NavigationControl({ showCompass: false, showZoom: true }),
+      'top-right',
+    )
     map.on('load', () => setStyleLoaded(true))
     mapRef.current = map
     setMapReady(true)

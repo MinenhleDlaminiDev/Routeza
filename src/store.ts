@@ -8,15 +8,19 @@ import type {
   ViewState,
 } from './types'
 import { parseAddresses } from './lib/parseAddresses'
+import { getCurrentLocation } from './lib/geolocation'
 import { routingProvider } from './routing'
+
+export type LocationStatus = 'idle' | 'locating' | 'granted' | 'denied'
 
 const DEFAULT_SETTINGS: Settings = {
   startHour: 9,
   avgSpeedMph: 20,
   serviceMinPerStop: 3,
   roundTrip: false,
-  // Depot ~ San Francisco city center (matches the mock geocoder).
-  depot: { lat: 37.7749, lng: -122.4194 },
+  // Default depot ~ Johannesburg city center (matches the mock geocoder and
+  // sample data). Overridden by the driver's GPS via useCurrentLocation().
+  depot: { lat: -26.2041, lng: 28.0473 },
 }
 
 interface RouteStore {
@@ -27,10 +31,12 @@ interface RouteStore {
   selectedStopId: string | null
   settingsOpen: boolean
   optimizing: boolean
+  locationStatus: LocationStatus
 
   // Add screen
   setStopsFromText: (raw: string) => void
   clearStops: () => void
+  useCurrentLocation: () => Promise<void>
 
   // Navigation
   setView: (view: ViewState) => void
@@ -56,12 +62,30 @@ export const useStore = create<RouteStore>()(
       selectedStopId: null,
       settingsOpen: false,
       optimizing: false,
+      locationStatus: 'idle',
 
       setStopsFromText: (raw) => {
         set({ stops: parseAddresses(raw), routeResult: null })
       },
 
       clearStops: () => set({ stops: [], routeResult: null, view: 'add' }),
+
+      // Set the depot to the driver's current GPS location. Keeps the existing
+      // depot on failure. Re-optimizes if a route already exists (the depot is
+      // the route's start point).
+      useCurrentLocation: async () => {
+        set({ locationStatus: 'locating' })
+        try {
+          const loc = await getCurrentLocation()
+          set((s) => ({
+            settings: { ...s.settings, depot: loc },
+            locationStatus: 'granted',
+          }))
+          if (get().routeResult) void get().reoptimize()
+        } catch {
+          set({ locationStatus: 'denied' })
+        }
+      },
 
       setView: (view) => set({ view }),
       selectStop: (id) => set({ selectedStopId: id }),
@@ -126,6 +150,10 @@ export const useStore = create<RouteStore>()(
     }),
     {
       name: 'routerun-v1',
+      // Bump this whenever seeded sample data or the persisted shape changes,
+      // so stale saved state is discarded automatically instead of showing old
+      // data. (No migrate = zustand drops mismatched state and re-seeds.)
+      version: 1,
       partialize: (s) => ({
         stops: s.stops,
         settings: s.settings,

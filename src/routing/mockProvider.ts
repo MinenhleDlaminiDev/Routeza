@@ -3,8 +3,8 @@ import { hashString } from '../lib/geo'
 import { localOptimize } from '../lib/localOptimize'
 import type { GeocodeResult, RoutingProvider } from './provider'
 
-// City center to scatter mock geocodes around (San Francisco-ish).
-const CITY_CENTER: LatLng = { lat: 37.7749, lng: -122.4194 }
+// City center to scatter mock geocodes around (Johannesburg-ish).
+const CITY_CENTER: LatLng = { lat: -26.2041, lng: 28.0473 }
 const SPREAD = 0.09 // ~6 miles of jitter in each direction
 
 /** Deterministic pseudo-coordinate derived from the address text. */

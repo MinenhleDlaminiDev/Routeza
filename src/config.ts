@@ -9,9 +9,10 @@ export type RoutingProviderKind = 'mock' | 'free'
 
 function readProviderKind(): RoutingProviderKind {
   const raw = (import.meta.env.VITE_ROUTING_PROVIDER ?? '').trim().toLowerCase()
-  if (raw === 'free') return 'free'
-  // Default to the mock; also the safe fallback for any unknown value.
-  return 'mock'
+  if (raw === 'mock') return 'mock'
+  // Default to the real (free) stack; set VITE_ROUTING_PROVIDER=mock for the
+  // fast offline demo. A future in-app toggle will replace this env switch.
+  return 'free'
 }
 
 export const config = {

@@ -25,7 +25,8 @@ npm run build    # typecheck + production build
 ## How it works
 
 1. **Add screen** — paste/edit addresses (one per line). They're parsed,
-   trimmed, and deduped. A sample batch of 14 SF deliveries is pre-filled.
+   trimmed, and deduped. A sample batch of 14 Johannesburg deliveries is
+   pre-filled. Tap "Use my location" to start the route from your GPS position.
 2. **Optimize** — geocodes each address, then solves a stop order starting from
    the driver's depot (nearest-neighbour + a 2-opt improvement pass).
 3. **Route screen** — a map strip with the route line, numbered status-colored
@@ -45,7 +46,7 @@ Copy `.env.example` to `.env` to change settings (all optional):
 
 | Variable | Values | Purpose |
 | --- | --- | --- |
-| `VITE_ROUTING_PROVIDER` | `mock` (default) · `free` | Which routing backend to use. |
+| `VITE_ROUTING_PROVIDER` | `free` (default) · `mock` | Which routing backend to use. |
 | `VITE_MAPTILER_KEY` | key string | Optional, for nicer map tiles. |
 
 ## Routing backends
@@ -54,10 +55,12 @@ Geocoding and optimization sit behind the `RoutingProvider` interface
 (`src/routing/provider.ts`). The active backend is chosen from
 `VITE_ROUTING_PROVIDER` in `src/routing/index.ts`:
 
+- **`free`** (default) — `FreeRoutingProvider`: real Nominatim geocoding +
+  OSRM optimization with road geometry. Free/open-source; needs network.
+  Geocoding is throttled to ~1 req/sec and cached.
 - **`mock`** — `MockRoutingProvider`: deterministic pseudo-geocodes +
-  nearest-neighbour/2-opt. Offline, no keys, used for demos and tests.
-- **`free`** — `FreeRoutingProvider`: Nominatim (geocoding) + OSRM
-  (optimization). Free/open-source. Being wired up in steps 1b/1c.
+  nearest-neighbour/2-opt. Offline, no keys, fast — for demos and tests. Note
+  its positions are fake (scattered around Johannesburg), not real lookups.
 
 Planned later: swap geocoding to Google for better South African / township
 accuracy once scale demands it — a small, contained change behind the same

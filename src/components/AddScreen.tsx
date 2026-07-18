@@ -7,6 +7,8 @@ export default function AddScreen() {
   const setStopsFromText = useStore((s) => s.setStopsFromText)
   const optimize = useStore((s) => s.optimize)
   const optimizing = useStore((s) => s.optimizing)
+  const locationStatus = useStore((s) => s.locationStatus)
+  const useCurrentLocation = useStore((s) => s.useCurrentLocation)
 
   // The raw text mirrors the parsed stops; seed from existing stops, or the
   // sample batch on a fresh start.
@@ -43,6 +45,29 @@ export default function AddScreen() {
           <p className="mt-1 text-[14px] text-muted">
             {stops.length} {stops.length === 1 ? 'stop' : 'stops'} · gig delivery
           </p>
+        </div>
+
+        {/* Start point */}
+        <div className="mb-6 flex items-center justify-between gap-3 rounded-[14px] border border-hairline bg-surface p-3.5">
+          <div className="min-w-0">
+            <div className="text-[13px] font-600 text-ink">Start point</div>
+            <div className="ellipsis text-[12px] text-muted">
+              {startPointStatus(locationStatus)}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void useCurrentLocation()}
+            disabled={locationStatus === 'locating'}
+            className="flex flex-none items-center gap-1.5 rounded-[11px] border border-hairline bg-app px-3 py-2 text-[13px] font-600 text-accent transition-colors hover:bg-accent-soft disabled:opacity-60"
+          >
+            <LocationIcon />
+            {locationStatus === 'locating'
+              ? 'Locating…'
+              : locationStatus === 'granted'
+                ? 'Update'
+                : 'Use my location'}
+          </button>
         </div>
 
         {/* Pasted addresses card */}
@@ -137,5 +162,37 @@ export default function AddScreen() {
         </div>
       </div>
     </div>
+  )
+}
+
+function startPointStatus(status: string): string {
+  switch (status) {
+    case 'locating':
+      return 'Getting your location…'
+    case 'granted':
+      return 'Using your current location'
+    case 'denied':
+      return "Couldn't get location — using default"
+    default:
+      return 'Default — Johannesburg'
+  }
+}
+
+function LocationIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11z" />
+      <circle cx="12" cy="10" r="2.5" />
+    </svg>
   )
 }
