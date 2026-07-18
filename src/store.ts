@@ -14,6 +14,14 @@ import { routingProvider } from './routing'
 
 export type LocationStatus = 'idle' | 'locating' | 'granted' | 'denied'
 
+/** The subset of store state that is persisted to localStorage. */
+interface PersistedRouteState {
+  stops: Stop[]
+  settings: Settings
+  routeResult: RouteResult | null
+  view: ViewState
+}
+
 // Default depot ~ Johannesburg city center (matches the mock geocoder and
 // sample data). Overridden by the driver's GPS via useCurrentLocation().
 export const DEFAULT_DEPOT: LatLng = { lat: -26.2041, lng: 28.0473 }
@@ -155,9 +163,13 @@ export const useStore = create<RouteStore>()(
       name: 'routerun-v1',
       // Bump this whenever seeded sample data or the persisted shape changes,
       // so stale saved state is discarded automatically instead of showing old
-      // data. (No migrate = zustand drops mismatched state and re-seeds.)
+      // data.
       version: 1,
-      partialize: (s) => ({
+      // Discard any state from an older version quietly (re-seeds from
+      // defaults) instead of logging a "couldn't be migrated" error.
+      migrate: (persisted, version) =>
+        version < 1 ? undefined : (persisted as PersistedRouteState),
+      partialize: (s): PersistedRouteState => ({
         stops: s.stops,
         settings: s.settings,
         // Drop the road geometry before persisting — it can be thousands of

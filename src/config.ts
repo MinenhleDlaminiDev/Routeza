@@ -20,4 +20,7 @@ export const config = {
   routingProvider: readProviderKind(),
   /** Optional MapTiler key for nicer map tiles (blank = use plain OSM tiles). */
   maptilerKey: (import.meta.env.VITE_MAPTILER_KEY ?? '').trim(),
+  /** Supabase project URL + anon key. Blank = backend disabled (local-only). */
+  supabaseUrl: (import.meta.env.VITE_SUPABASE_URL ?? '').trim(),
+  supabaseAnonKey: (import.meta.env.VITE_SUPABASE_ANON_KEY ?? '').trim(),
 } as const
