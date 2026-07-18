@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useStore } from '../store'
+import { DEFAULT_DEPOT, useStore } from '../store'
 import { SAMPLE_ADDRESSES } from '../data/sampleAddresses'
 
 export default function AddScreen() {
@@ -9,6 +9,10 @@ export default function AddScreen() {
   const optimizing = useStore((s) => s.optimizing)
   const locationStatus = useStore((s) => s.locationStatus)
   const useCurrentLocation = useStore((s) => s.useCurrentLocation)
+  const depot = useStore((s) => s.settings.depot)
+  // The saved depot differs from the default once the driver has used GPS.
+  const isCustomDepot =
+    depot.lat !== DEFAULT_DEPOT.lat || depot.lng !== DEFAULT_DEPOT.lng
 
   // The raw text mirrors the parsed stops; seed from existing stops, or the
   // sample batch on a fresh start.
@@ -52,7 +56,7 @@ export default function AddScreen() {
           <div className="min-w-0">
             <div className="text-[13px] font-600 text-ink">Start point</div>
             <div className="ellipsis text-[12px] text-muted">
-              {startPointStatus(locationStatus)}
+              {startPointStatus(locationStatus, isCustomDepot)}
             </div>
           </div>
           <button
@@ -165,17 +169,15 @@ export default function AddScreen() {
   )
 }
 
-function startPointStatus(status: string): string {
-  switch (status) {
-    case 'locating':
-      return 'Getting your location…'
-    case 'granted':
-      return 'Using your current location'
-    case 'denied':
-      return "Couldn't get location — using default"
-    default:
-      return 'Default — Johannesburg'
+function startPointStatus(status: string, isCustomDepot: boolean): string {
+  // Live states during a session take priority; otherwise derive from the
+  // actual saved depot so the label stays correct across reloads.
+  if (status === 'locating') return 'Getting your location…'
+  if (status === 'denied' && !isCustomDepot) {
+    return "Couldn't get location — using default"
   }
+  if (isCustomDepot) return 'Using your current location'
+  return 'Default — Johannesburg'
 }
 
 function LocationIcon() {

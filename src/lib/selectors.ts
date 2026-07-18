@@ -100,7 +100,9 @@ export function computeStats(
   const speed = Math.max(1, settings.avgSpeedMph)
   const totalMiles = route.legs.reduce((sum, l) => sum + l.miles, 0)
   const totalDriveMin = (totalMiles / speed) * 60
-  const serviceTotal = settings.serviceMinPerStop * route.orderedStopIds.length
+  // Service time counts every stop the driver works, including ones that
+  // couldn't be geocoded (they're not in the route but still get serviced).
+  const serviceTotal = settings.serviceMinPerStop * total
   const doneByHour = settings.startHour + (totalDriveMin + serviceTotal) / 60
 
   return {

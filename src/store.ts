@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type {
+  LatLng,
   RouteResult,
   Settings,
   Stop,
@@ -13,14 +14,16 @@ import { routingProvider } from './routing'
 
 export type LocationStatus = 'idle' | 'locating' | 'granted' | 'denied'
 
+// Default depot ~ Johannesburg city center (matches the mock geocoder and
+// sample data). Overridden by the driver's GPS via useCurrentLocation().
+export const DEFAULT_DEPOT: LatLng = { lat: -26.2041, lng: 28.0473 }
+
 const DEFAULT_SETTINGS: Settings = {
   startHour: 9,
   avgSpeedMph: 20,
   serviceMinPerStop: 3,
   roundTrip: false,
-  // Default depot ~ Johannesburg city center (matches the mock geocoder and
-  // sample data). Overridden by the driver's GPS via useCurrentLocation().
-  depot: { lat: -26.2041, lng: 28.0473 },
+  depot: DEFAULT_DEPOT,
 }
 
 interface RouteStore {
