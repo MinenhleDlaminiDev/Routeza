@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { DEFAULT_DEPOT, useStore } from '../store'
 import { SAMPLE_ADDRESSES } from '../data/sampleAddresses'
+import AccountButton from './AccountButton'
 
 export default function AddScreen() {
   const stops = useStore((s) => s.stops)
@@ -39,16 +40,20 @@ export default function AddScreen() {
     <div className="relative flex h-full flex-col bg-app">
       <div className="flex-1 overflow-y-auto px-5 pb-40 pt-7">
         {/* Header block */}
-        <div className="mb-6">
-          <div className="mb-2 font-mono text-[11px] font-500 uppercase tracking-[0.14em] text-muted">
-            New route
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="mb-2 font-mono text-[11px] font-500 uppercase tracking-[0.14em] text-muted">
+              New route
+            </div>
+            <h1 className="text-[23px] font-700 leading-tight text-ink">
+              Today's deliveries
+            </h1>
+            <p className="mt-1 text-[14px] text-muted">
+              {stops.length} {stops.length === 1 ? 'stop' : 'stops'} · gig
+              delivery
+            </p>
           </div>
-          <h1 className="text-[23px] font-700 leading-tight text-ink">
-            Today's deliveries
-          </h1>
-          <p className="mt-1 text-[14px] text-muted">
-            {stops.length} {stops.length === 1 ? 'stop' : 'stops'} · gig delivery
-          </p>
+          <AccountButton />
         </div>
 
         {/* Start point */}

@@ -5,6 +5,7 @@ import { formatClock, formatDuration } from '../lib/format'
 import RouteMap from './RouteMap'
 import StatBar from './StatBar'
 import StopList from './StopList'
+import AccountButton from './AccountButton'
 
 export default function RouteScreen() {
   const stops = useStore((s) => s.stops)
@@ -57,6 +58,7 @@ export default function RouteScreen() {
         >
           <GearIcon />
         </button>
+        <AccountButton />
       </header>
 
       {/* Scroll area: map + stats + list */}

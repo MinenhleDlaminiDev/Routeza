@@ -41,6 +41,7 @@ interface RouteStore {
   view: ViewState
   selectedStopId: string | null
   settingsOpen: boolean
+  accountOpen: boolean
   optimizing: boolean
   locationStatus: LocationStatus
 
@@ -53,6 +54,7 @@ interface RouteStore {
   setView: (view: ViewState) => void
   selectStop: (id: string | null) => void
   openSettings: (open: boolean) => void
+  openAccount: (open: boolean) => void
 
   // Optimization
   optimize: () => Promise<void>
@@ -72,6 +74,7 @@ export const useStore = create<RouteStore>()(
       view: 'add',
       selectedStopId: null,
       settingsOpen: false,
+      accountOpen: false,
       optimizing: false,
       locationStatus: 'idle',
 
@@ -101,6 +104,7 @@ export const useStore = create<RouteStore>()(
       setView: (view) => set({ view }),
       selectStop: (id) => set({ selectedStopId: id }),
       openSettings: (open) => set({ settingsOpen: open }),
+      openAccount: (open) => set({ accountOpen: open }),
 
       optimize: async () => {
         const { stops, settings } = get()
