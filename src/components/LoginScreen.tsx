@@ -8,9 +8,10 @@ export default function LoginScreen() {
 
   const onSignIn = async () => {
     setBusy(true)
-    await signIn()
-    // If sign-in starts a redirect we never get here; on error we re-enable.
-    setBusy(false)
+    const { error } = await signIn()
+    // On success the browser redirects away — keep the button busy. Only
+    // re-enable if sign-in failed to start.
+    if (error) setBusy(false)
   }
 
   return (

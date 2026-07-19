@@ -7,7 +7,11 @@ export interface UserData {
   routeResult: RouteResult | null
 }
 
-/** Load the signed-in driver's settings + current route from Supabase. */
+/**
+ * Load the signed-in driver's settings + current route from Supabase.
+ * Throws if a query actually errors — callers must NOT treat a failed load as
+ * "empty account" (that would let local data overwrite the server).
+ */
 export async function loadUserData(userId: string): Promise<UserData> {
   if (!supabase) return { settings: null, stops: null, routeResult: null }
 
@@ -15,6 +19,9 @@ export async function loadUserData(userId: string): Promise<UserData> {
     supabase.from('settings').select('*').eq('user_id', userId).maybeSingle(),
     supabase.from('routes').select('*').eq('user_id', userId).maybeSingle(),
   ])
+
+  if (settingsRes.error) throw new Error(settingsRes.error.message)
+  if (routeRes.error) throw new Error(routeRes.error.message)
 
   const s = settingsRes.data
   const r = routeRes.data

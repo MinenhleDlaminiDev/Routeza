@@ -15,7 +15,7 @@ interface AuthState {
   session: Session | null
   user: User | null
   error: string | null
-  signIn: () => Promise<void>
+  signIn: () => Promise<{ error?: string }>
   logOut: () => Promise<void>
 }
 
@@ -31,6 +31,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     const { error } = await signInWithGoogle()
     if (error) set({ error })
     // On success the browser redirects; onAuthChange updates state on return.
+    return { error }
   },
 
   logOut: async () => {

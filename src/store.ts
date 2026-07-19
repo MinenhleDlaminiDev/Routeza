@@ -48,6 +48,7 @@ interface RouteStore {
   // Add screen
   setStopsFromText: (raw: string) => void
   clearStops: () => void
+  resetUserState: () => void
   useCurrentLocation: () => Promise<void>
 
   // Navigation
@@ -83,6 +84,20 @@ export const useStore = create<RouteStore>()(
       },
 
       clearStops: () => set({ stops: [], routeResult: null, view: 'add' }),
+
+      // Wipe all user-specific state on sign-out so the next account on this
+      // device starts clean (no leftover route/depot from the previous driver).
+      resetUserState: () =>
+        set({
+          stops: [],
+          routeResult: null,
+          settings: DEFAULT_SETTINGS,
+          view: 'add',
+          selectedStopId: null,
+          settingsOpen: false,
+          accountOpen: false,
+          locationStatus: 'idle',
+        }),
 
       // Set the depot to the driver's current GPS location. Keeps the existing
       // depot on failure. Re-optimizes if a route already exists (the depot is

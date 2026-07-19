@@ -34,6 +34,14 @@ let routeDirty = false
 
 const hasUnsyncedChanges = () => changeSeq !== syncedSeq
 
+/** Reset the sync bookkeeping so state never carries across accounts. */
+function resetSyncState() {
+  changeSeq = 0
+  syncedSeq = 0
+  settingsDirty = false
+  routeDirty = false
+}
+
 const flushToServer = debounce(async (userId: string) => {
   const seqAtStart = changeSeq
   if (settingsDirty) {
@@ -50,9 +58,18 @@ const flushToServer = debounce(async (userId: string) => {
 }, 800)
 
 async function hydrateFromServer(userId: string) {
+  let data
+  try {
+    // Load first (may throw). Don't touch the store until it succeeds, so a
+    // failed load never triggers the push-on-empty path below.
+    data = await loadUserData(userId)
+  } catch (e) {
+    console.warn('[sync] load failed, keeping local state:', e)
+    return
+  }
+
   hydrating = true
   try {
-    const data = await loadUserData(userId)
     const patch: Partial<ReturnType<typeof useStore.getState>> = {}
     if (data.settings) patch.settings = data.settings
     if (data.stops) {
@@ -62,7 +79,7 @@ async function hydrateFromServer(userId: string) {
     if (Object.keys(patch).length > 0) useStore.setState(patch)
 
     // First sign-in with nothing on the server but real local work → push it up
-    // so pre-login progress isn't lost.
+    // so pre-login progress isn't lost. Only reached when the load succeeded.
     const local = useStore.getState()
     if (!data.settings) void saveSettings(userId, local.settings)
     if (!data.stops && local.routeResult) {
@@ -76,10 +93,13 @@ async function hydrateFromServer(userId: string) {
 }
 
 /** Pull latest from the server, unless we have local changes still syncing. */
-async function refreshFromServer() {
+function refreshFromServer() {
   if (!currentUserId || hydrating || hasUnsyncedChanges()) return
-  await hydrateFromServer(currentUserId)
+  void hydrateFromServer(currentUserId)
 }
+
+// Coalesce focus + visibilitychange (both fire on foreground) into one load.
+const debouncedRefresh = debounce(refreshFromServer, 300)
 
 /** Wire up sync. Call once at app start; returns an unsubscribe function. */
 export function initSync(): () => void {
@@ -88,10 +108,19 @@ export function initSync(): () => void {
   const unsubAuth = useAuthStore.subscribe((state) => {
     const uid = state.user?.id ?? null
     if (uid && uid !== currentUserId) {
+      // Switching from another account → clear its data first. On a first
+      // sign-in (currentUserId null) keep local work so hydrate can push it up.
+      if (currentUserId !== null) {
+        resetSyncState()
+        useStore.getState().resetUserState()
+      }
       currentUserId = uid
       void hydrateFromServer(uid)
-    } else if (!uid) {
+    } else if (!uid && currentUserId) {
+      // Signed out: wipe this device so the next account starts clean.
       currentUserId = null
+      resetSyncState()
+      useStore.getState().resetUserState()
     }
   })
 
@@ -114,10 +143,10 @@ export function initSync(): () => void {
 
   // Pull the latest when the app comes back to the foreground / reconnects.
   const onVisible = () => {
-    if (document.visibilityState === 'visible') void refreshFromServer()
+    if (document.visibilityState === 'visible') debouncedRefresh()
   }
-  const onFocus = () => void refreshFromServer()
-  const onOnline = () => void refreshFromServer()
+  const onFocus = () => debouncedRefresh()
+  const onOnline = () => debouncedRefresh()
   document.addEventListener('visibilitychange', onVisible)
   window.addEventListener('focus', onFocus)
   window.addEventListener('online', onOnline)
