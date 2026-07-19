@@ -8,6 +8,7 @@ export default function AddScreen() {
   const setStopsFromText = useStore((s) => s.setStopsFromText)
   const optimize = useStore((s) => s.optimize)
   const optimizing = useStore((s) => s.optimizing)
+  const optimizeError = useStore((s) => s.optimizeError)
   const locationStatus = useStore((s) => s.locationStatus)
   const useCurrentLocation = useStore((s) => s.useCurrentLocation)
   const depot = useStore((s) => s.settings.depot)
@@ -158,13 +159,25 @@ export default function AddScreen() {
           }}
         >
           <div className="pointer-events-auto px-5 pb-6 pt-2">
+            {optimizeError && !optimizing && (
+              <div
+                role="alert"
+                className="mb-3 rounded-[12px] border border-failed-bg bg-failed-bg px-4 py-3 text-[13px] text-failed-text"
+              >
+                {optimizeError}
+              </div>
+            )}
             <button
               type="button"
               disabled={!canOptimize}
               onClick={() => void optimize()}
               className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-accent px-5 py-[15px] text-[16px] font-600 text-white shadow-cta transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-[#B8C6E8] disabled:shadow-none"
             >
-              {optimizing ? 'Optimizing…' : 'Optimize route'}
+              {optimizing
+                ? 'Optimizing…'
+                : optimizeError
+                  ? 'Try again'
+                  : 'Optimize route'}
               {!optimizing && <span aria-hidden>→</span>}
             </button>
           </div>

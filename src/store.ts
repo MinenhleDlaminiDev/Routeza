@@ -43,6 +43,7 @@ interface RouteStore {
   settingsOpen: boolean
   accountOpen: boolean
   optimizing: boolean
+  optimizeError: string | null
   locationStatus: LocationStatus
 
   // Add screen
@@ -60,6 +61,7 @@ interface RouteStore {
   // Optimization
   optimize: () => Promise<void>
   reoptimize: () => Promise<void>
+  clearOptimizeError: () => void
 
   // Mutations
   setStatus: (id: string, status: StopStatus) => void
@@ -77,10 +79,11 @@ export const useStore = create<RouteStore>()(
       settingsOpen: false,
       accountOpen: false,
       optimizing: false,
+      optimizeError: null,
       locationStatus: 'idle',
 
       setStopsFromText: (raw) => {
-        set({ stops: parseAddresses(raw), routeResult: null })
+        set({ stops: parseAddresses(raw), routeResult: null, optimizeError: null })
       },
 
       clearStops: () => set({ stops: [], routeResult: null, view: 'add' }),
@@ -96,6 +99,7 @@ export const useStore = create<RouteStore>()(
           selectedStopId: null,
           settingsOpen: false,
           accountOpen: false,
+          optimizeError: null,
           locationStatus: 'idle',
         }),
 
@@ -124,7 +128,7 @@ export const useStore = create<RouteStore>()(
       optimize: async () => {
         const { stops, settings } = get()
         if (stops.length === 0) return
-        set({ optimizing: true })
+        set({ optimizing: true, optimizeError: null })
         try {
           const geo = await routingProvider.geocode(stops)
           const geoById = new Map(geo.map((g) => [g.id, g]))
@@ -135,15 +139,34 @@ export const useStore = create<RouteStore>()(
             }
             return { ...s, lat: g.lat, lng: g.lng, geocodeFailed: false }
           })
+
+          // If not a single address resolved, it's almost always the service
+          // being unreachable — surface it and stay put instead of showing an
+          // empty route the driver can't work.
+          if (located.every((s) => s.geocodeFailed)) {
+            set({
+              optimizeError:
+                "Couldn't look up your addresses. Check your connection and try again.",
+            })
+            return
+          }
+
           const result = await routingProvider.optimize(settings.depot, located, {
             roundTrip: settings.roundTrip,
             avgSpeedMph: settings.avgSpeedMph,
           })
           set({ stops: located, routeResult: result, view: 'route' })
+        } catch (e) {
+          console.warn('[optimize] failed:', e)
+          set({
+            optimizeError: 'Something went wrong optimizing the route. Try again.',
+          })
         } finally {
           set({ optimizing: false })
         }
       },
+
+      clearOptimizeError: () => set({ optimizeError: null }),
 
       // Re-run only the optimizer against already-geocoded stops (e.g. when
       // roundTrip changes). Keeps existing coordinates.
@@ -157,6 +180,10 @@ export const useStore = create<RouteStore>()(
             avgSpeedMph: settings.avgSpeedMph,
           })
           set({ routeResult: result })
+        } catch (e) {
+          // Keep the existing route on failure — a settings tweak shouldn't
+          // break an active route.
+          console.warn('[reoptimize] failed, keeping current route:', e)
         } finally {
           set({ optimizing: false })
         }
