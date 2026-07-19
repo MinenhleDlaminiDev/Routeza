@@ -41,11 +41,12 @@ export async function loadUserData(userId: string): Promise<UserData> {
   }
 }
 
+/** Returns true only if the write actually reached the server. */
 export async function saveSettings(
   userId: string,
   settings: Settings,
-): Promise<void> {
-  if (!supabase) return
+): Promise<boolean> {
+  if (!supabase) return false
   const { error } = await supabase.from('settings').upsert({
     user_id: userId,
     start_hour: settings.startHour,
@@ -56,15 +57,20 @@ export async function saveSettings(
     depot_lng: settings.depot.lng,
     updated_at: new Date().toISOString(),
   })
-  if (error) console.warn('[sync] saveSettings failed:', error.message)
+  if (error) {
+    console.warn('[sync] saveSettings failed:', error.message)
+    return false
+  }
+  return true
 }
 
+/** Returns true only if the write actually reached the server. */
 export async function saveRoute(
   userId: string,
   stops: Stop[],
   routeResult: RouteResult | null,
-): Promise<void> {
-  if (!supabase) return
+): Promise<boolean> {
+  if (!supabase) return false
   const { error } = await supabase.from('routes').upsert({
     user_id: userId,
     stops,
@@ -72,5 +78,9 @@ export async function saveRoute(
     route_result: routeResult ? { ...routeResult, geometry: undefined } : null,
     updated_at: new Date().toISOString(),
   })
-  if (error) console.warn('[sync] saveRoute failed:', error.message)
+  if (error) {
+    console.warn('[sync] saveRoute failed:', error.message)
+    return false
+  }
+  return true
 }

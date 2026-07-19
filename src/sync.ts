@@ -1,5 +1,6 @@
 import { useStore } from './store'
 import { useAuthStore } from './authStore'
+import { useSyncStore } from './syncStore'
 import { isSupabaseConfigured } from './backend'
 import { loadUserData, saveRoute, saveSettings } from './backend/data'
 
@@ -34,27 +35,42 @@ let routeDirty = false
 
 const hasUnsyncedChanges = () => changeSeq !== syncedSeq
 
+/** Publish online + pending status for the offline indicator. */
+function publishStatus() {
+  useSyncStore.setState({
+    online: typeof navigator === 'undefined' ? true : navigator.onLine,
+    pending: currentUserId !== null && hasUnsyncedChanges(),
+  })
+}
+
 /** Reset the sync bookkeeping so state never carries across accounts. */
 function resetSyncState() {
   changeSeq = 0
   syncedSeq = 0
   settingsDirty = false
   routeDirty = false
+  publishStatus()
 }
 
 const flushToServer = debounce(async (userId: string) => {
   const seqAtStart = changeSeq
+  let allOk = true
   if (settingsDirty) {
-    settingsDirty = false
-    await saveSettings(userId, useStore.getState().settings)
+    const ok = await saveSettings(userId, useStore.getState().settings)
+    if (ok) settingsDirty = false
+    else allOk = false
   }
   if (routeDirty) {
-    routeDirty = false
     const { stops, routeResult } = useStore.getState()
-    await saveRoute(userId, stops, routeResult)
+    const ok = await saveRoute(userId, stops, routeResult)
+    if (ok) routeDirty = false
+    else allOk = false
   }
-  // Only mark clean if nothing changed while we were saving.
-  if (changeSeq === seqAtStart) syncedSeq = changeSeq
+  // Only mark synced if every write reached the server AND nothing changed
+  // while we were saving. A failed (offline) write stays pending and is
+  // retried when the connection returns.
+  if (allOk && changeSeq === seqAtStart) syncedSeq = changeSeq
+  publishStatus()
 }, 800)
 
 async function hydrateFromServer(userId: string) {
@@ -87,6 +103,7 @@ async function hydrateFromServer(userId: string) {
     }
     // After a full hydrate, local and server agree — nothing left unsynced.
     syncedSeq = changeSeq
+    publishStatus()
   } finally {
     hydrating = false
   }
@@ -137,6 +154,7 @@ export function initSync(): () => void {
     }
     if (changed) {
       changeSeq++
+      publishStatus()
       flushToServer(currentUserId)
     }
   })
@@ -146,10 +164,17 @@ export function initSync(): () => void {
     if (document.visibilityState === 'visible') debouncedRefresh()
   }
   const onFocus = () => debouncedRefresh()
-  const onOnline = () => debouncedRefresh()
+  const onOnline = () => {
+    publishStatus()
+    // Reconnected: retry any pending writes first, then pull.
+    if (currentUserId && hasUnsyncedChanges()) flushToServer(currentUserId)
+    debouncedRefresh()
+  }
+  const onOffline = () => publishStatus()
   document.addEventListener('visibilitychange', onVisible)
   window.addEventListener('focus', onFocus)
   window.addEventListener('online', onOnline)
+  window.addEventListener('offline', onOffline)
 
   // Handle the case where a session is already present at startup.
   const uid = useAuthStore.getState().user?.id
@@ -157,6 +182,7 @@ export function initSync(): () => void {
     currentUserId = uid
     void hydrateFromServer(uid)
   }
+  publishStatus()
 
   return () => {
     unsubAuth()
@@ -164,5 +190,6 @@ export function initSync(): () => void {
     document.removeEventListener('visibilitychange', onVisible)
     window.removeEventListener('focus', onFocus)
     window.removeEventListener('online', onOnline)
+    window.removeEventListener('offline', onOffline)
   }
 }

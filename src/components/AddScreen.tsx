@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { DEFAULT_DEPOT, useStore } from '../store'
 import { SAMPLE_ADDRESSES } from '../data/sampleAddresses'
 import AccountButton from './AccountButton'
+import SyncIndicator from './SyncIndicator'
 
 export default function AddScreen() {
   const stops = useStore((s) => s.stops)
@@ -54,7 +55,10 @@ export default function AddScreen() {
               delivery
             </p>
           </div>
-          <AccountButton />
+          <div className="flex flex-none flex-col items-end gap-2">
+            <AccountButton />
+            <SyncIndicator />
+          </div>
         </div>
 
         {/* Start point */}
