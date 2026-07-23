@@ -1,5 +1,5 @@
 import type { LatLng, RouteResult, Stop } from '../types'
-import type { GeocodeResult, RoutingProvider } from './provider'
+import type { GeocodeProgress, GeocodeResult, RoutingProvider } from './provider'
 import { geocodeAddress } from './nominatim'
 import { osrmTrip } from './osrm'
 import { localOptimize } from '../lib/localOptimize'
@@ -17,7 +17,10 @@ export class FreeRoutingProvider implements RoutingProvider {
    * can't be located are flagged `failed` so the row shows a "couldn't locate"
    * chip; they're excluded from optimization later.
    */
-  async geocode(stops: Stop[]): Promise<GeocodeResult[]> {
+  async geocode(
+    stops: Stop[],
+    onProgress?: GeocodeProgress,
+  ): Promise<GeocodeResult[]> {
     const results: GeocodeResult[] = []
     for (const stop of stops) {
       const coord = await geocodeAddress(stop.address)
@@ -26,6 +29,7 @@ export class FreeRoutingProvider implements RoutingProvider {
       } else {
         results.push({ id: stop.id, lat: 0, lng: 0, failed: true })
       }
+      onProgress?.(results.length, stops.length)
     }
     return results
   }

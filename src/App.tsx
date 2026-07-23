@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useStore } from './store'
 import { useAuthStore, initAuth } from './authStore'
+import { useProgressStore } from './progressStore'
 import { initSync } from './sync'
 import { isSupabaseConfigured } from './backend'
 import { deriveStops } from './lib/selectors'
@@ -10,6 +11,7 @@ import StopDetailSheet from './components/StopDetailSheet'
 import SettingsSheet from './components/SettingsSheet'
 import AccountSheet from './components/AccountSheet'
 import LoginScreen from './components/LoginScreen'
+import UpdatePrompt from './components/UpdatePrompt'
 
 export default function App() {
   const authStatus = useAuthStore((s) => s.status)
@@ -25,11 +27,18 @@ export default function App() {
   }, [])
 
   // Gate behind login only when a backend exists; otherwise run local-only.
-  if (isSupabaseConfigured) {
-    if (authStatus === 'loading') return <AuthSplash />
-    if (authStatus === 'signed-out') return <LoginScreen />
-  }
-  return <AppShell />
+  let content
+  if (isSupabaseConfigured && authStatus === 'loading') content = <AuthSplash />
+  else if (isSupabaseConfigured && authStatus === 'signed-out')
+    content = <LoginScreen />
+  else content = <AppShell />
+
+  return (
+    <>
+      {content}
+      <UpdatePrompt />
+    </>
+  )
 }
 
 function AppShell() {
@@ -46,6 +55,7 @@ function AppShell() {
   const openAccount = useStore((s) => s.openAccount)
   const updateSettings = useStore((s) => s.updateSettings)
   const optimizing = useStore((s) => s.optimizing)
+  const optimizeProgress = useProgressStore((s) => s.optimizeProgress)
 
   const derived = useMemo(
     () => deriveStops(stops, routeResult, settings),
@@ -76,11 +86,23 @@ function AppShell() {
 
         {optimizing && view === 'add' && (
           <div className="absolute inset-0 z-40 flex items-center justify-center bg-app/70 backdrop-blur-[1px]">
-            <div className="flex flex-col items-center gap-3">
+            <div className="flex w-full max-w-[260px] flex-col items-center gap-3 px-6">
               <Spinner />
               <div className="font-mono text-[13px] font-500 text-muted">
-                Optimizing route…
+                {optimizeProgress?.phase === 'geocoding'
+                  ? `Locating addresses… ${optimizeProgress.done} of ${optimizeProgress.total}`
+                  : 'Building route…'}
               </div>
+              {optimizeProgress?.phase === 'geocoding' && (
+                <div className="h-1 w-full overflow-hidden rounded-full bg-hairline">
+                  <div
+                    className="h-full rounded-full bg-accent transition-[width] duration-300"
+                    style={{
+                      width: `${(optimizeProgress.done / Math.max(1, optimizeProgress.total)) * 100}%`,
+                    }}
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -91,7 +113,10 @@ function AppShell() {
 
 function AuthSplash() {
   return (
-    <div className="flex min-h-full w-full items-center justify-center bg-canvas">
+    <div className="flex min-h-full w-full flex-col items-center justify-center gap-5 bg-canvas">
+      <div className="font-mono text-[13px] font-600 uppercase tracking-[0.18em] text-muted">
+        RouteRun
+      </div>
       <Spinner />
     </div>
   )

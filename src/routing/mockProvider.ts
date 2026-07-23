@@ -1,7 +1,7 @@
 import type { LatLng, RouteResult, Stop } from '../types'
 import { hashString } from '../lib/geo'
 import { localOptimize } from '../lib/localOptimize'
-import type { GeocodeResult, RoutingProvider } from './provider'
+import type { GeocodeProgress, GeocodeResult, RoutingProvider } from './provider'
 
 // City center to scatter mock geocodes around (Johannesburg-ish).
 const CITY_CENTER: LatLng = { lat: -26.2041, lng: 28.0473 }
@@ -24,14 +24,19 @@ function delay(ms: number) {
 }
 
 export class MockRoutingProvider implements RoutingProvider {
-  async geocode(stops: Stop[]): Promise<GeocodeResult[]> {
+  async geocode(
+    stops: Stop[],
+    onProgress?: GeocodeProgress,
+  ): Promise<GeocodeResult[]> {
     await delay(450)
-    return stops.map((s) => {
+    const results = stops.map((s) => {
       // Simulate a rare geocode failure for obviously junk lines (very short).
       const failed = s.address.replace(/[^a-z0-9]/gi, '').length < 3
       const { lat, lng } = mockGeocode(s.address)
       return { id: s.id, lat, lng, failed }
     })
+    onProgress?.(results.length, results.length)
+    return results
   }
 
   async optimize(

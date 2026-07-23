@@ -6,13 +6,16 @@ import { loadUserData, saveRoute, saveSettings } from './backend/data'
 
 /**
  * Keeps the driver's route + settings in sync with Supabase (local-first):
- *  - On sign-in, load their data from the server into the store.
  *  - On changes, push the changed slice to the server (debounced).
- *  - On app foreground / focus / reconnect, pull the latest (unless we have
- *    unsynced local changes) so edits from another device show up (2d).
+ *  - On sign-in / foreground / reconnect / startup, RECONCILE: if local has
+ *    unpushed changes, push them (never pull — a pull would clobber offline
+ *    work); otherwise pull the latest so other-device edits show up.
+ *  - A durable per-user "dirty" flag in localStorage survives app restarts, so
+ *    offline changes made before the app was closed are pushed (not overwritten)
+ *    on the next launch.
  *  - localStorage (zustand persist) remains the instant offline cache.
  *
- * Last-write-wins for now; a proper offline queue / conflict handling is Phase 3.
+ * Last-write-wins across devices for now; a richer merge is future work.
  */
 
 function debounce<A extends unknown[]>(fn: (...args: A) => void, ms: number) {
@@ -27,13 +30,45 @@ let currentUserId: string | null = null
 // Suppress pushes while we're applying server data to the store.
 let hydrating = false
 
-// Track unsynced local changes so a refresh-on-focus never clobbers them.
+// In-memory tracking of unsynced local changes.
 let changeSeq = 0 // bumped on every local change
 let syncedSeq = 0 // last change seq confirmed saved to the server
 let settingsDirty = false
 let routeDirty = false
 
 const hasUnsyncedChanges = () => changeSeq !== syncedSeq
+
+// --- Durable "unsynced" flag (survives app restart) -------------------------
+
+const DIRTY_PREFIX = 'routerun-dirty:'
+// Mirrors whether the flag is currently written, so we don't re-write it on
+// every store change within one dirty span.
+let dirtyFlagWritten = false
+
+function markDirtyPersisted(userId: string) {
+  if (dirtyFlagWritten) return
+  try {
+    localStorage.setItem(DIRTY_PREFIX + userId, '1')
+    dirtyFlagWritten = true
+  } catch {
+    /* ignore */
+  }
+}
+function clearDirtyPersisted(userId: string) {
+  try {
+    localStorage.removeItem(DIRTY_PREFIX + userId)
+  } catch {
+    /* ignore */
+  }
+  dirtyFlagWritten = false
+}
+function isDirtyPersisted(userId: string): boolean {
+  try {
+    return localStorage.getItem(DIRTY_PREFIX + userId) === '1'
+  } catch {
+    return false
+  }
+}
 
 /** Publish online + pending status for the offline indicator. */
 function publishStatus() {
@@ -43,7 +78,7 @@ function publishStatus() {
   })
 }
 
-/** Reset the sync bookkeeping so state never carries across accounts. */
+/** Reset the in-memory bookkeeping so state never carries across accounts. */
 function resetSyncState() {
   changeSeq = 0
   syncedSeq = 0
@@ -54,22 +89,29 @@ function resetSyncState() {
 
 const flushToServer = debounce(async (userId: string) => {
   const seqAtStart = changeSeq
+  const wantSettings = settingsDirty
+  const wantRoute = routeDirty
   let allOk = true
-  if (settingsDirty) {
+
+  if (wantSettings) {
     const ok = await saveSettings(userId, useStore.getState().settings)
-    if (ok) settingsDirty = false
-    else allOk = false
+    if (!ok) allOk = false
   }
-  if (routeDirty) {
+  if (wantRoute) {
     const { stops, routeResult } = useStore.getState()
     const ok = await saveRoute(userId, stops, routeResult)
-    if (ok) routeDirty = false
-    else allOk = false
+    if (!ok) allOk = false
   }
-  // Only mark synced if every write reached the server AND nothing changed
-  // while we were saving. A failed (offline) write stays pending and is
-  // retried when the connection returns.
-  if (allOk && changeSeq === seqAtStart) syncedSeq = changeSeq
+
+  // Clear the dirty flags only if every write reached the server AND nothing
+  // changed while we were saving. Otherwise leave them set so the change is
+  // retried (a failed offline write, or an edit that landed mid-save).
+  if (allOk && changeSeq === seqAtStart) {
+    settingsDirty = false
+    routeDirty = false
+    syncedSeq = changeSeq
+    clearDirtyPersisted(userId)
+  }
   publishStatus()
 }, 800)
 
@@ -97,26 +139,55 @@ async function hydrateFromServer(userId: string) {
     // First sign-in with nothing on the server but real local work → push it up
     // so pre-login progress isn't lost. Only reached when the load succeeded.
     const local = useStore.getState()
-    if (!data.settings) void saveSettings(userId, local.settings)
-    if (!data.stops && local.routeResult) {
-      void saveRoute(userId, local.stops, local.routeResult)
+    let pushOk = true
+    if (!data.settings) {
+      pushOk = (await saveSettings(userId, local.settings)) && pushOk
     }
-    // After a full hydrate, local and server agree — nothing left unsynced.
-    syncedSeq = changeSeq
+    if (!data.stops && local.routeResult) {
+      pushOk = (await saveRoute(userId, local.stops, local.routeResult)) && pushOk
+    }
+
+    if (pushOk) {
+      // Local and server now agree — nothing left unsynced.
+      syncedSeq = changeSeq
+      clearDirtyPersisted(userId)
+    } else {
+      // The catch-up upload failed — keep it pending so it's retried as a push.
+      markDirtyPersisted(userId)
+    }
     publishStatus()
   } finally {
     hydrating = false
   }
 }
 
-/** Pull latest from the server, unless we have local changes still syncing. */
-function refreshFromServer() {
-  if (!currentUserId || hydrating || hasUnsyncedChanges()) return
-  void hydrateFromServer(currentUserId)
+/**
+ * Decide push vs pull. If local has unpushed changes (in-memory or from the
+ * durable flag), push them and never pull. Otherwise pull the latest.
+ */
+function reconcile(userId: string) {
+  if (hydrating) return
+  if (hasUnsyncedChanges()) {
+    // We already know which slices are dirty in-memory — just flush them.
+    flushToServer(userId)
+  } else if (isDirtyPersisted(userId)) {
+    // Startup after offline edits: the durable flag says local is ahead but
+    // the in-memory slice flags are fresh. Mark both and push; never pull.
+    settingsDirty = true
+    routeDirty = true
+    changeSeq++
+    dirtyFlagWritten = true // the flag is already persisted from before
+    publishStatus()
+    flushToServer(userId)
+  } else {
+    void hydrateFromServer(userId)
+  }
 }
 
-// Coalesce focus + visibilitychange (both fire on foreground) into one load.
-const debouncedRefresh = debounce(refreshFromServer, 300)
+// Coalesce focus + visibilitychange (both fire on foreground) into one call.
+const debouncedReconcile = debounce(() => {
+  if (currentUserId) reconcile(currentUserId)
+}, 300)
 
 /** Wire up sync. Call once at app start; returns an unsubscribe function. */
 export function initSync(): () => void {
@@ -125,17 +196,21 @@ export function initSync(): () => void {
   const unsubAuth = useAuthStore.subscribe((state) => {
     const uid = state.user?.id ?? null
     if (uid && uid !== currentUserId) {
-      // Switching from another account → clear its data first. On a first
-      // sign-in (currentUserId null) keep local work so hydrate can push it up.
+      // Switching from another account → discard its local data + dirty flag
+      // first (we can't keep two accounts' data in one local store). A first
+      // sign-in (currentUserId null) keeps local work for reconcile to push.
       if (currentUserId !== null) {
+        clearDirtyPersisted(currentUserId)
         resetSyncState()
         useStore.getState().resetUserState()
       }
       currentUserId = uid
-      void hydrateFromServer(uid)
+      reconcile(uid)
     } else if (!uid && currentUserId) {
       // Signed out: wipe this device so the next account starts clean.
+      const old = currentUserId
       currentUserId = null
+      clearDirtyPersisted(old)
       resetSyncState()
       useStore.getState().resetUserState()
     }
@@ -154,21 +229,20 @@ export function initSync(): () => void {
     }
     if (changed) {
       changeSeq++
+      markDirtyPersisted(currentUserId) // durable until confirmed saved
       publishStatus()
       flushToServer(currentUserId)
     }
   })
 
-  // Pull the latest when the app comes back to the foreground / reconnects.
+  // Reconcile (push pending, else pull) on foreground / focus / reconnect.
   const onVisible = () => {
-    if (document.visibilityState === 'visible') debouncedRefresh()
+    if (document.visibilityState === 'visible') debouncedReconcile()
   }
-  const onFocus = () => debouncedRefresh()
+  const onFocus = () => debouncedReconcile()
   const onOnline = () => {
     publishStatus()
-    // Reconnected: retry any pending writes first, then pull.
-    if (currentUserId && hasUnsyncedChanges()) flushToServer(currentUserId)
-    debouncedRefresh()
+    if (currentUserId) reconcile(currentUserId)
   }
   const onOffline = () => publishStatus()
   document.addEventListener('visibilitychange', onVisible)
@@ -176,11 +250,12 @@ export function initSync(): () => void {
   window.addEventListener('online', onOnline)
   window.addEventListener('offline', onOffline)
 
-  // Handle the case where a session is already present at startup.
+  // Handle a session already present at startup (push pending offline work,
+  // else pull).
   const uid = useAuthStore.getState().user?.id
   if (uid) {
     currentUserId = uid
-    void hydrateFromServer(uid)
+    reconcile(uid)
   }
   publishStatus()
 

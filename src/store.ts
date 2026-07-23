@@ -10,6 +10,7 @@ import type {
 } from './types'
 import { parseAddresses } from './lib/parseAddresses'
 import { getCurrentLocation } from './lib/geolocation'
+import { setOptimizeProgress } from './progressStore'
 import { routingProvider } from './routing'
 
 export type LocationStatus = 'idle' | 'locating' | 'granted' | 'denied'
@@ -129,8 +130,12 @@ export const useStore = create<RouteStore>()(
         const { stops, settings } = get()
         if (stops.length === 0) return
         set({ optimizing: true, optimizeError: null })
+        setOptimizeProgress({ phase: 'geocoding', done: 0, total: stops.length })
         try {
-          const geo = await routingProvider.geocode(stops)
+          const geo = await routingProvider.geocode(stops, (done, total) =>
+            setOptimizeProgress({ phase: 'geocoding', done, total }),
+          )
+          setOptimizeProgress({ phase: 'building', done: 0, total: stops.length })
           const geoById = new Map(geo.map((g) => [g.id, g]))
           const located: Stop[] = stops.map((s) => {
             const g = geoById.get(s.id)
@@ -155,7 +160,9 @@ export const useStore = create<RouteStore>()(
             roundTrip: settings.roundTrip,
             avgSpeedMph: settings.avgSpeedMph,
           })
-          set({ stops: located, routeResult: result, view: 'route' })
+          // Flip optimizing off in the same update as the view switch so the
+          // route screen never renders its re-optimize bar for a frame.
+          set({ stops: located, routeResult: result, view: 'route', optimizing: false })
         } catch (e) {
           console.warn('[optimize] failed:', e)
           set({
@@ -163,6 +170,7 @@ export const useStore = create<RouteStore>()(
           })
         } finally {
           set({ optimizing: false })
+          setOptimizeProgress(null)
         }
       },
 

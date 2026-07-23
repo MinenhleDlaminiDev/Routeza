@@ -6,7 +6,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // Prompt instead of auto-reloading — a field tool shouldn't refresh
+      // itself mid-delivery. The driver taps "Update" when ready.
+      registerType: 'prompt',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'RouteRun — Delivery Routes',

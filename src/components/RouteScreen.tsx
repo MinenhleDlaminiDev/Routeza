@@ -15,6 +15,7 @@ export default function RouteScreen() {
   const setView = useStore((s) => s.setView)
   const selectStop = useStore((s) => s.selectStop)
   const openSettings = useStore((s) => s.openSettings)
+  const optimizing = useStore((s) => s.optimizing)
 
   const derived = useMemo(
     () => deriveStops(stops, routeResult, settings),
@@ -32,7 +33,14 @@ export default function RouteScreen() {
   )}`
 
   return (
-    <div className="flex h-full flex-col bg-app">
+    <div className="relative flex h-full flex-col bg-app">
+      {/* Re-optimize progress (settings / GPS change) */}
+      {optimizing && (
+        <div className="absolute inset-x-0 top-0 z-30 h-[3px] overflow-hidden bg-transparent">
+          <div className="bar-indeterminate" />
+        </div>
+      )}
+
       {/* Header */}
       <header className="flex items-center gap-3 border-b border-hairline bg-surface px-3 py-2.5">
         <button
